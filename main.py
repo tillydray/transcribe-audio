@@ -4,28 +4,31 @@ Module for capturing audio from an input stream, converting it to WAV format,
 and transcribing it via the OpenAI API.
 """
 
-import sounddevice as sd
+import dotenv
+import internal_logging as logging
 import io
+import locale
+import numpy as np
+import openai
 import os
 import queue
+import sounddevice as sd
 import threading
 import time
-import wave
-import numpy as np
-from openai import OpenAI
 import vad
-from dotenv import load_dotenv
+import wave
 
-load_dotenv()
+dotenv.load_dotenv()
 
-import locale
+logger = logging.logger
+
 cur_locale = locale.getlocale()
 if cur_locale[0] is None:
     LANGUAGE_CODE = "en"
 else:
     LANGUAGE_CODE = cur_locale[0].split("_")[0].lower()
 
-client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+client = openai.OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
 audio_queue = queue.Queue()
 
 DEVICE_NAME = "Aggregate Device"
@@ -38,7 +41,7 @@ vad_detector = vad.VoiceActivityDetector(mode=1, frame_duration_ms=30)
 def enque_audio(indata, frames, time_info, status):
     """Enqueue a copy of the incoming audio data into the global audio_queue."""
     if status:
-        print("Streaming status:", status)
+        logger.debug("Streaming status: %s", status)
     # Simply enqueue the raw audio data (as a copy to avoid conflicts)
     audio_queue.put(indata.copy())
 
@@ -63,7 +66,7 @@ def generate_topic_from_context(full_transcript, initial_topic, previous_topic):
         new_topic = response.choices[0].text.strip()
         return new_topic
     except Exception as e:
-        print("Error generating topic from context:", e)
+        logger.error("Error generating topic from context:", e)
         return previous_topic
 
 
@@ -101,14 +104,14 @@ def process_audio_segment(initial_topic):
             # Generate frames using the VAD's frame_generator.
             frames = list(vad_detector.frame_generator(audio_data, SAMPLERATE))
             if not frames:
-                print("No frames generated, skipping segment.")
+                logger.info("No frames generated, skipping segment.")
                 continue
             # Use vad_collector to yield only voiced segments, with 300 ms padding.
             padded_voiced_segments = list(
                 vad.vad_collector(SAMPLERATE, vad_detector.frame_duration_ms, 300, vad_detector.vad, frames)
             )
             if not padded_voiced_segments:
-                print("Silence detected (via vad_collector), skipping transcription for this segment.")
+                logger.info("Silence detected (via vad_collector), skipping transcription for this segment.")
                 continue
             # Concatenate the voiced segments.
             voiced_audio = b"".join(padded_voiced_segments)
@@ -149,12 +152,12 @@ def process_audio_segment(initial_topic):
                 now = time.time()
                 if now - last_topic_update >= 60 and refinements < 10:
                     new_topic = generate_topic_from_context(full_transcript, initial_topic, current_topic)
-                    print("Refined topic:", new_topic)
+                    logger.info("Refined topic: %s", new_topic)
                     current_topic = new_topic
                     last_topic_update = now
                     refinements += 1
             except Exception as e:
-                print("Error calling transcription API:", e)
+                logger.error("Error calling transcription API: %s", e)
         else:
             # If no segments accumulated, sleep briefly
             time.sleep(0.1)
@@ -166,9 +169,9 @@ def main():
     topic = input("Enter the transcription topic (press Enter for a generic topic): ")
     if not topic.strip():
         topic = "general conversation"
-        print("Using default topic: 'general conversation'")
+        logger.info("Using default topic: 'general conversation'")
     else:
-        print(f"Using topic: '{topic}'")
+        logger.info("Using topic: '%s'", topic)
     worker = threading.Thread(target=process_audio_segment, args=(topic,), daemon=True)
     worker.start()
 
@@ -180,7 +183,7 @@ def main():
     print("Available input devices:")
     for new_idx, orig_idx, dev in reindexed_devices:
         default_str = " (default)" if orig_idx == default_input_idx else ""
-        print(f"  {new_idx}: {dev['name']}{default_str}")
+        print(f"  {new_idx}: {dev['name']} {default_str}")
     choice = input("Select an audio device (press Enter for default): ")
     if choice.strip() == "":
         device_to_use_index = default_input_idx
@@ -191,7 +194,7 @@ def main():
             orig_idx = reindexed_devices[new_idx][1]
             device_to_use_index = orig_idx
         except Exception as e:
-            print("Invalid selection, using default input device.")
+            logger.warning("Invalid selection, using default input device.")
             device_to_use_index = default_input_idx
     device_to_use = sd.query_devices(device_to_use_index)['name']
 
@@ -208,7 +211,7 @@ def main():
     except KeyboardInterrupt:
         print("Exiting...")
     except Exception as e:
-        print("Stream error:", e)
+        logger.error("Stream error: %s", e)
 
 
 if __name__ == '__main__':

@@ -3,41 +3,39 @@
 This project captures audio from an input stream, converts it into a WAV file, 
 and transcribes it using the OpenAI API.
 
-## Overview
+** Setup
+
+1. Ensure you have Python 3 installed.
+2. (Optional) Create and activate a virtual environment.
+3. Install dependencies:
+   #+begin_src bash
+   pip install -r requirements.txt
+   #+end_src
+4. Create a =.env= file in the project directory with:
+   #+begin_src bash
+   OPENAI_API_KEY=your_openai_api_key_here
+   #+end_src
+5. Adjust the =DEVICE_NAME= constant in the script to match one of your
+   available input devices. List your available input devices with this command
+   #+begin_src bash
+   python -c "import sounddevice as sd; print(sd.query_devices())"
+   #+end_src
+
+** Usage
+
+Run the project using:
+
+#+begin_src bash
+python main.py
+#+end_src
+
+Speak into your microphone and the project will capture 5-second segments of audio, 
+transcribe them using the OpenAI API, and print the transcriptions to the terminal.
+
+** Overview
 
 The project uses the following technologies:
 - Python 3
 - sounddevice for audio capture
 - OpenAI API for transcription
 - wave and io for audio file handling
-
-## Setup
-
-1. Ensure you have Python 3 installed.
-2. (Optional) Create and activate a virtual environment.
-3. Install dependencies:
-   ```bash
-   pip install sounddevice openai python-dotenv
-   ```
-4. Create a `.env` file in the project directory with:
-   ```
-   OPENAI_API_KEY=your_openai_api_key_here
-   ```
-
-## Usage
-
-Run the project using:
-
-    python main.py
-
-Speak into your microphone and the project will capture 5-second segments of audio, 
-transcribe them using the OpenAI API, and print the transcriptions to the terminal.
-
-## Troubleshooting
-
-- Verify your audio device names and adjust the DEVICE_NAME setting in main.py if necessary.
-- Ensure your API key is correct and you have access to the transcription model.
-
-## License
-
-This project is licensed under the MIT License.

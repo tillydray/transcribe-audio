@@ -1,6 +1,8 @@
 import webrtcvad
 import collections
-import sys
+import internal_logging as logging
+
+logger = logging.logger
 
 
 class VoiceActivityDetector:
@@ -92,13 +94,13 @@ def vad_collector(sample_rate, frame_duration_ms,
     voiced_frames = []
     for frame in frames:
         is_speech = vad.is_speech(frame, sample_rate)
-        sys.stdout.write('1' if is_speech else '0')
+        logger.debug('1' if is_speech else '0')
         if not triggered:
             ring_buffer.append((frame, is_speech))
             num_voiced = len([f for f, speech in ring_buffer if speech])
             if num_voiced > 0.9 * ring_buffer.maxlen:
                 triggered = True
-                sys.stdout.write('+')
+                logger.debug('+')
                 for f, s in ring_buffer:
                     voiced_frames.append(f)
                 ring_buffer.clear()
@@ -107,13 +109,13 @@ def vad_collector(sample_rate, frame_duration_ms,
             ring_buffer.append((frame, is_speech))
             num_unvoiced = len([f for f, speech in ring_buffer if not speech])
             if num_unvoiced > 0.9 * ring_buffer.maxlen:
-                sys.stdout.write('-')
+                logger.debug('-')
                 triggered = False
                 yield b''.join(voiced_frames)
                 ring_buffer.clear()
                 voiced_frames = []
     if triggered:
-        sys.stdout.write('-')
-    sys.stdout.write('\n')
+        logger.debug('-')
+    logger.debug('\n')
     if voiced_frames:
         yield b''.join(voiced_frames)
