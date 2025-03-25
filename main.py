@@ -4,78 +4,23 @@ Module for capturing audio from an input stream, converting it to WAV format,
 and transcribing it via the OpenAI API.
 """
 
-import dotenv
-import internal_logging as logging
-import io
-import locale
-import numpy as np
-import openai
-import os
-import queue
 import sounddevice as sd
 import threading
+import queue
 import time
-import vad
+import io
 import wave
-
-dotenv.load_dotenv()
+import numpy as np
+import internal_logging as logging
+from transcribe_service.audio_capture import start_audio_capture, list_input_devices, audio_queue
+from transcribe_service.vad_processing import VoiceActivityDetector, vad_collector
+from transcribe_service.api_client import transcribe_audio, generate_topic_from_context
+from transcribe_service.config import LANGUAGE_CODE, CHANNELS, SAMPLERATE, SEGMENT_SECONDS
 
 logger = logging.logger
-
-cur_locale = locale.getlocale()
-if cur_locale[0] is None:
-    LANGUAGE_CODE = "en"
-else:
-    LANGUAGE_CODE = cur_locale[0].split("_")[0].lower()
-
-client = openai.OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
-audio_queue = queue.Queue()
-
-DEVICE_NAME = "Aggregate Device"
-CHANNELS = 1
-SAMPLERATE = 16000
-SEGMENT_SECONDS = 5  # Collect 5 seconds of audio for each transcription
-vad_detector = vad.VoiceActivityDetector(mode=1, frame_duration_ms=30)
-
-
-def enque_audio(indata: np.ndarray, frames: int, time_info: dict, status: object) -> None:
-    """Enqueue a copy of the incoming audio data into the global audio_queue."""
-    if status:
-        logger.debug("Streaming status: %s", status)
-    # Simply enqueue the raw audio data (as a copy to avoid conflicts)
-    audio_queue.put(indata.copy())
-
-
-def generate_topic_from_context(full_transcript: str, initial_topic: str, previous_topic: str) -> str:
-    """Generate a refined topic from the full transcript, the user-input initial topic,
-    and the previously generated topic using the LLM.
-    """
-    prompt = (
-        f"Based on the following conversation transcript:\n{full_transcript}\n"
-        f"The user initially indicated the topic as '{initial_topic}', and the previous refined topic was '{previous_topic}'.\n"
-        "Please generate a refined, concise topic that best represents the ongoing conversation:"
-    )
-    try:
-        response = client.completions.create(
-            model="gpt-4",
-            prompt=prompt,
-            max_tokens=30,
-            temperature=0.5,
-            language=LANGUAGE_CODE
-        )
-        new_topic = response.choices[0].text.strip()
-        return new_topic
-    except Exception as e:
-        logger.error("Error generating topic from context:", e)
-        return previous_topic
-
+vad_detector = VoiceActivityDetector(mode=1, frame_duration_ms=30)
 
 def process_audio_segment(initial_topic: str) -> None:
-    """Accumulate audio data and call the transcription API.
-    
-    Arguments:
-        topic (str): The transcription topic to include in the prompt.
-    """
     current_topic = initial_topic
     full_transcript = ""
     last_topic_update = time.time()
@@ -85,47 +30,38 @@ def process_audio_segment(initial_topic: str) -> None:
     while True:
         collected_frames = 0
         segments = []
-        # Collect enough chunks to sum up to desired segment length.
         while collected_frames < frames_per_segment:
             try:
                 data = audio_queue.get(timeout=1)
                 segments.append(data)
                 collected_frames += data.shape[0]
             except queue.Empty:
-                # If no new data arrives, check if we have any accumulated data
                 if segments:
                     break
         if segments:
-            # Convert each chunk from float32 to int16 and concatenate
             processed_chunks = [
                 (chunk * 32767).astype(np.int16).tobytes() for chunk in segments
             ]
             audio_data = b"".join(processed_chunks)
-            # Generate frames using the VAD's frame_generator.
             frames = list(vad_detector.frame_generator(audio_data, SAMPLERATE))
             if not frames:
                 logger.info("No frames generated, skipping segment.")
                 continue
-            # Use vad_collector to yield only voiced segments, with 300 ms padding.
             padded_voiced_segments = list(
-                vad.vad_collector(SAMPLERATE, vad_detector.frame_duration_ms, 300, vad_detector.vad, frames)
+                vad_collector(SAMPLERATE, vad_detector.frame_duration_ms, 300, vad_detector.vad, frames)
             )
             if not padded_voiced_segments:
                 logger.info("Silence detected (via vad_collector), skipping transcription for this segment.")
                 continue
-            # Concatenate the voiced segments.
             voiced_audio = b"".join(padded_voiced_segments)
-            # Write the voiced audio into an in-memory WAV file with a proper header.
             wav_buffer = io.BytesIO()
             with wave.open(wav_buffer, 'wb') as wf:
                 wf.setnchannels(CHANNELS)
-                wf.setsampwidth(2)  # 16-bit PCM
+                wf.setsampwidth(2)
                 wf.setframerate(SAMPLERATE)
                 wf.writeframes(voiced_audio)
             wav_buffer.seek(0)
-            # Prepare file tuple. Some APIs expect (filename, fileobj, mimetype)
             file_tuple = ("audio.wav", wav_buffer, "audio/wav")
-            # Build the prompt dynamically including the transcription topic.
             if prev_transcript:
                 prompt = (
                     f"Topic: {current_topic}\n"
@@ -137,35 +73,22 @@ def process_audio_segment(initial_topic: str) -> None:
                     f"Topic: {current_topic}\n"
                     "Transcribe the current audio segment with proper punctuation and clarity:"
                 )
-            try:
-                response = client.audio.transcriptions.create(
-                    file=file_tuple,
-                    model="gpt-4o-transcribe",
-                    language=LANGUAGE_CODE,
-                    prompt=prompt,
-                    temperature=0
-                )
-                current_transcript = response.text
+            current_transcript = transcribe_audio(file_tuple, prompt, LANGUAGE_CODE)
+            if current_transcript:
                 print("Transcription:", current_transcript)
                 prev_transcript = current_transcript
                 full_transcript += "\n" + current_transcript
                 now = time.time()
                 if now - last_topic_update >= 60 and refinements < 10:
-                    new_topic = generate_topic_from_context(full_transcript, initial_topic, current_topic)
+                    new_topic = generate_topic_from_context(full_transcript, initial_topic, current_topic, LANGUAGE_CODE)
                     logger.info("Refined topic: %s", new_topic)
                     current_topic = new_topic
                     last_topic_update = now
                     refinements += 1
-            except Exception as e:
-                logger.error("Error calling transcription API: %s", e)
         else:
-            # If no segments accumulated, sleep briefly
             time.sleep(0.1)
 
-
 def main() -> None:
-    """Start the audio processing worker thread and initiates the audio stream."""
-    # Prompt user for transcription topic
     topic = input("Enter the transcription topic (press Enter for a generic topic): ")
     if not topic.strip():
         topic = "general conversation"
@@ -175,11 +98,9 @@ def main() -> None:
     worker = threading.Thread(target=process_audio_segment, args=(topic,), daemon=True)
     worker.start()
 
-    # Prompt user for audio device selection
-    devices = sd.query_devices()
-    all_input_devices = [(i, d) for i, d in enumerate(devices) if d['max_input_channels'] > 0]
+    devices = list_input_devices()
     default_input_idx = sd.default.device[0]
-    reindexed_devices = [(new_idx, orig_idx, dev) for new_idx, (orig_idx, dev) in enumerate(all_input_devices)]
+    reindexed_devices = [(new_idx, orig_idx, dev) for new_idx, (orig_idx, dev) in enumerate(devices)]
     print("Available input devices:")
     for new_idx, orig_idx, dev in reindexed_devices:
         default_str = " (default)" if orig_idx == default_input_idx else ""
@@ -197,22 +118,7 @@ def main() -> None:
             logger.warning("Invalid selection, using default input device.")
             device_to_use_index = default_input_idx
     device_to_use = sd.query_devices(device_to_use_index)['name']
-
-    try:
-        with sd.InputStream(
-            device=device_to_use,
-            channels=CHANNELS,
-            samplerate=SAMPLERATE,
-            callback=enque_audio
-        ):
-            print("Collecting audio for transcription. Press Ctrl+C to exit...")
-            while True:
-                time.sleep(1)
-    except KeyboardInterrupt:
-        print("Exiting...")
-    except Exception as e:
-        logger.error("Stream error: %s", e)
-
+    start_audio_capture(device_to_use, CHANNELS, SAMPLERATE)
 
 if __name__ == '__main__':
     main()
