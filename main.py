@@ -18,6 +18,13 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+import locale
+cur_locale = locale.getlocale()
+if cur_locale[0] is None:
+    LANGUAGE_CODE = "en"
+else:
+    LANGUAGE_CODE = cur_locale[0].split("_")[0].lower()
+
 client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
 audio_queue = queue.Queue()
 
@@ -49,8 +56,9 @@ def generate_topic_from_context(full_transcript, initial_topic, previous_topic):
         response = client.completions.create(
             model="gpt-4",
             prompt=prompt,
-            max_tokens=20,
+            max_tokens=30,
             temperature=0.5,
+            language=LANGUAGE_CODE
         )
         new_topic = response.choices[0].text.strip()
         return new_topic
@@ -117,20 +125,20 @@ def process_audio_segment(initial_topic):
             # Build the prompt dynamically including the transcription topic.
             if prev_transcript:
                 prompt = (
-                    f"Topic: {topic}\n"
+                    f"Topic: {current_topic}\n"
                     f"Previous transcript: {prev_transcript}\n"
                     "Now, transcribe the current audio segment with proper punctuation and clarity:"
                 )
             else:
                 prompt = (
-                    f"Topic: {topic}\n"
+                    f"Topic: {current_topic}\n"
                     "Transcribe the current audio segment with proper punctuation and clarity:"
                 )
             try:
                 response = client.audio.transcriptions.create(
                     file=file_tuple,
                     model="gpt-4o-transcribe",
-                    language="en",
+                    language=LANGUAGE_CODE,
                     prompt=prompt,
                     temperature=0
                 )
