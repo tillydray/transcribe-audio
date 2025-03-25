@@ -15,6 +15,7 @@ import logging
 
 
 logger = logging.getLogger(__name__)
+SESSION_ID = None
 
 
 async def connect_transcription_session():
@@ -25,8 +26,11 @@ async def connect_transcription_session():
     from transcribe_service.config import OPENAI_API_KEY, INPUT_AUDIO_FORMAT, STREAMING_MODEL, STREAMING_PROMPT, STREAMING_THRESHOLD, STREAMING_PREFIX_PADDING_MS, STREAMING_SILENCE_DURATION_MS, LANGUAGE_CODE
 
     url = "wss://api.openai.com/v1/realtime?intent=transcription"
-    headers = {"Authorization": f"Bearer {OPENAI_API_KEY}"}
-    ws = await websockets.connect(url, extra_headers=headers)
+    headers = {
+        "Authorization": f"Bearer {OPENAI_API_KEY}",
+        "openai-beta": "realtime=v1"
+    }
+    ws = await websockets.connect(url, additional_headers=headers)
 
     # Define the initial configuration payload for the transcription session.
     # The payload includes:
@@ -63,16 +67,19 @@ async def connect_transcription_session():
 async def send_audio_chunks(ws, audio_source):
     """Continuously send audio chunks from the audio_source over the WebSocket connection.
 
-    Splits audio data into parts of max_chunk_size bytes with an overlap to ensure continuity if needed.
+    Each audio chunk is base64 encoded and sent as a JSON message with type 'input_audio_buffer.append'.
+    If a session ID is available, it is included in the payload.
 
     Parameters:
         ws: The active WebSocket connection.
         audio_source: An asynchronous source (e.g., an asyncio.Queue) providing audio chunks.
     """
     import asyncio
+    import base64
+    import json
     max_chunk_size = 4096
-    # Set overlap size (in bytes) to provide overlapping segments if needed.
     overlap_size = 512
+    global SESSION_ID
     while True:
         try:
             chunk = await audio_source.get()
@@ -83,11 +90,17 @@ async def send_audio_chunks(ws, audio_source):
             await asyncio.sleep(0.01)
             continue
         offset = 0
-        # Send chunks with an overlap between consecutive parts.
         while offset < len(chunk):
             part = chunk[offset: offset + max_chunk_size]
+            # Encode the audio data in base64
+            audio_b64 = base64.b64encode(part).decode('utf-8')
+            payload = {
+                "type": "input_audio_buffer.append",
+                "session": SESSION_ID,
+                "audio": audio_b64,
+            }
             try:
-                await ws.send(part)
+                await ws.send(json.dumps(payload))
             except Exception as e:
                 logger.error("Error sending audio chunk: %s", e)
                 break
@@ -96,13 +109,13 @@ async def send_audio_chunks(ws, audio_source):
 
 async def audio_buffer_generator(audio_source):
     """Generate audio buffers from an audio source.
-    
+
     This async generator retrieves audio chunks from an asynchronous source (e.g., asyncio.Queue)
     and converts them to PCM byte format suitable for streaming.
-    
+
     Parameters:
         audio_source: An asynchronous source (e.g., asyncio.Queue) that yields audio chunks as NumPy arrays.
-    
+
     Yields:
         bytes: PCM audio data in bytes (16-bit little-endian).
     """
@@ -115,15 +128,23 @@ async def audio_buffer_generator(audio_source):
 
 async def handle_incoming_transcriptions(ws):
     """Handle incoming transcription messages from the WebSocket connection.
-
+    
     Parameters:
         ws: The active WebSocket connection.
     """
+    import json
+    global SESSION_ID
     transcript = ""
     try:
         async for message in ws:
             try:
                 data = json.loads(message)
+                if data.get("type") == "transcription_session.created":
+                    session = data.get("session")
+                    if session:
+                        SESSION_ID = session.get("id")
+                        logger.info("Session created with ID: %s", SESSION_ID)
+                    continue
                 partial = data.get("partial")
                 final = data.get("final")
                 if final:
@@ -150,10 +171,11 @@ async def manage_streaming():
     receiving_task = asyncio.create_task(handle_incoming_transcriptions(ws))
     await asyncio.gather(sending_task, receiving_task)
 
+
 async def manage_streaming_with_reconnect():
     """Manage the streaming workflow with automatic reconnection using exponential backoff.
-    
-    This function wraps the connection and streaming logic in a resilient loop. If the session 
+
+    This function wraps the connection and streaming logic in a resilient loop. If the session
     fails due to an exception, it will wait for an exponentially increasing delay before reconnecting.
     """
     delay = 1
