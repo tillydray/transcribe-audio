@@ -86,7 +86,11 @@ async def send_audio_chunks(ws, audio_source):
         # Send chunks with an overlap between consecutive parts.
         while offset < len(chunk):
             part = chunk[offset: offset + max_chunk_size]
-            await ws.send(part)
+            try:
+                await ws.send(part)
+            except Exception as e:
+                logger.error("Error sending audio chunk: %s", e)
+                break
             offset += (max_chunk_size - overlap_size) if max_chunk_size > overlap_size else max_chunk_size
 
 
