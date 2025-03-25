@@ -36,8 +36,12 @@ def enque_audio(indata, frames, time_info, status):
     audio_queue.put(indata.copy())
 
 
-def process_audio_segment():
-    """Accumulate audio data and call the transcription API."""
+def process_audio_segment(topic):
+    """Accumulate audio data and call the transcription API.
+    
+    Arguments:
+        topic (str): The transcription topic to include in the prompt.
+    """
     # Calculate the number of frames we need for SEGMENT_SECONDS of audio.
     frames_per_segment = SAMPLERATE * SEGMENT_SECONDS
     prev_transcript = ""
@@ -84,16 +88,17 @@ def process_audio_segment():
             wav_buffer.seek(0)
             # Prepare file tuple. Some APIs expect (filename, fileobj, mimetype)
             file_tuple = ("audio.wav", wav_buffer, "audio/wav")
-            # Build the prompt dynamically using previous transcript if available.
+            # Build the prompt dynamically including the transcription topic.
             if prev_transcript:
                 prompt = (
-                    f"Here is the transcript of the previous segment (omit any filler words):\n"
-                    f"{prev_transcript}\n"
-                    f"Now, transcribe the current audio segment with proper punctuation, ensuring clarity and conciseness:"
+                    f"Topic: {topic}\n"
+                    f"Previous transcript: {prev_transcript}\n"
+                    "Now, transcribe the current audio segment with proper punctuation and clarity:"
                 )
             else:
                 prompt = (
-                    "Transcribe the current audio segment with proper punctuation, ensuring clarity and conciseness, and exclude common filler words:"
+                    f"Topic: {topic}\n"
+                    "Transcribe the current audio segment with proper punctuation and clarity:"
                 )
             try:
                 response = client.audio.transcriptions.create(
@@ -115,7 +120,14 @@ def process_audio_segment():
 
 def main():
     """Start the audio processing worker thread and initiates the audio stream."""
-    worker = threading.Thread(target=process_audio_segment, daemon=True)
+    # Prompt user for transcription topic
+    topic = input("Enter the transcription topic (press Enter for a generic topic): ")
+    if not topic.strip():
+        topic = "general conversation"
+        print("Using default topic: 'general conversation'")
+    else:
+        print(f"Using topic: '{topic}'")
+    worker = threading.Thread(target=process_audio_segment, args=(topic,), daemon=True)
     worker.start()
 
     # Prompt user for audio device selection
