@@ -39,3 +39,11 @@ The project uses the following technologies:
 - sounddevice for audio capture
 - OpenAI API for transcription
 - wave and io for audio file handling
+
+** Testing
+
+To run the unit tests, use:
+
+#+begin_src bash
+python -m unittest discover -v
+#+end_src
