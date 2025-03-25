@@ -36,7 +36,30 @@ def enque_audio(indata, frames, time_info, status):
     audio_queue.put(indata.copy())
 
 
-def process_audio_segment(topic):
+def generate_topic_from_context(full_transcript, initial_topic, previous_topic):
+    """Generate a refined topic from the full transcript, the user-input initial topic,
+    and the previously generated topic using the LLM.
+    """
+    prompt = (
+        f"Based on the following conversation transcript:\n{full_transcript}\n"
+        f"The user initially indicated the topic as '{initial_topic}', and the previous refined topic was '{previous_topic}'.\n"
+        "Please generate a refined, concise topic that best represents the ongoing conversation:"
+    )
+    try:
+        response = client.completions.create(
+            model="gpt-4",
+            prompt=prompt,
+            max_tokens=20,
+            temperature=0.5,
+        )
+        new_topic = response.choices[0].text.strip()
+        return new_topic
+    except Exception as e:
+        print("Error generating topic from context:", e)
+        return previous_topic
+
+
+def process_audio_segment(initial_topic):
     """Accumulate audio data and call the transcription API.
     
     Arguments:
