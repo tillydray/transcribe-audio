@@ -115,7 +115,24 @@ async def handle_incoming_transcriptions(ws):
     Parameters:
         ws: The active WebSocket connection.
     """
-    pass
+    transcript = ""
+    try:
+        async for message in ws:
+            try:
+                data = json.loads(message)
+                partial = data.get("partial")
+                final = data.get("final")
+                if final:
+                    transcript += final
+                    logger.info("Final transcript: %s", transcript)
+                elif partial:
+                    logger.info("Partial transcript: %s", partial)
+                else:
+                    logger.info("Unknown message: %s", data)
+            except Exception as e:
+                logger.error("Error processing message: %s", e)
+    except Exception as e:
+        logger.error("Error receiving message: %s", e)
 
 
 async def manage_streaming():
