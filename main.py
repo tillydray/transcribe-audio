@@ -1,6 +1,7 @@
-#!/usr/bin/env python3
+#/usr/bin/env python3
 """
-Module for capturing audio from an input stream, converting it to WAV format, and transcribing it via the OpenAI API.
+Module for capturing audio from an input stream, converting it to WAV format,
+and transcribing it via the OpenAI API.
 """
 
 import sounddevice as sd
@@ -64,8 +65,13 @@ def process_audio_segment():
             file_tuple = ("audio.wav", wav_buffer, "audio/wav")
             try:
                 response = client.audio.transcriptions.create(
+                    file=file_tuple,
                     model="gpt-4o-transcribe",
-                    file=file_tuple
+                    # stream=True,
+                    language="en",
+                    prompt="",
+                    temperature=0,
+                    timestamp_granularities="segment"
                 )
                 print("Transcription:", response.text)
             except Exception as e:
@@ -80,9 +86,27 @@ def main():
     worker = threading.Thread(target=process_audio_segment, daemon=True)
     worker.start()
 
+    # Prompt user for audio device selection
+    devices = sd.query_devices()
+    input_devices = [d for d in devices if d['max_input_channels'] > 0]
+    print("Available input devices:")
+    for i, dev in enumerate(input_devices):
+        print(f"  {i}: {dev['name']}")
+    choice = input("Select an audio device (press Enter for default): ")
+    if choice.strip() == "":
+        device_to_use = sd.default.device[0]
+        print("Using default input device.")
+    else:
+        try:
+            idx = int(choice)
+            device_to_use = input_devices[idx]['name']
+        except Exception as e:
+            print("Invalid selection, using default input device.")
+            device_to_use = sd.default.device[0]
+
     try:
         with sd.InputStream(
-            device=DEVICE_NAME,
+            device=device_to_use,
             channels=CHANNELS,
             samplerate=SAMPLERATE,
             callback=enque_audio
