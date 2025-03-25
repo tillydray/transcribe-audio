@@ -70,6 +70,25 @@ async def send_audio_chunks(ws, audio_source):
     pass
 
 
+async def audio_buffer_generator(audio_source):
+    """Generate audio buffers from an audio source.
+    
+    This async generator retrieves audio chunks from an asynchronous source (e.g., asyncio.Queue)
+    and converts them to PCM byte format suitable for streaming.
+    
+    Parameters:
+        audio_source: An asynchronous source (e.g., asyncio.Queue) that yields audio chunks as NumPy arrays.
+    
+    Yields:
+        bytes: PCM audio data in bytes (16-bit little-endian).
+    """
+    import numpy as np
+    while True:
+        chunk = await audio_source.get()
+        pcm_bytes = (chunk * 32767).astype(np.int16).tobytes()
+        yield pcm_bytes
+
+
 async def handle_incoming_transcriptions(ws):
     """Handle incoming transcription messages from the WebSocket connection.
 
