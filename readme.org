@@ -15,11 +15,6 @@ and transcribes it using the OpenAI API.
    #+begin_src bash
    OPENAI_API_KEY=your_openai_api_key_here
    #+end_src
-5. Adjust the =DEVICE_NAME= constant in the script to match one of your
-   available input devices. List your available input devices with this command
-   #+begin_src bash
-   python -c "import sounddevice as sd; print(sd.query_devices())"
-   #+end_src
 
 * Usage
 
@@ -32,14 +27,6 @@ python main.py
 Speak into your microphone and the project will capture 5-second segments of audio, 
 transcribe them using the OpenAI API, and print the transcriptions to the terminal.
 
-* Overview
-
-The project uses the following technologies:
-- Python 3
-- sounddevice for audio capture
-- OpenAI API for transcription
-- wave and io for audio file handling
-
 * Testing
 
 To run the unit tests, use:
@@ -50,7 +37,12 @@ python -m unittest discover -v
 * Future Ideas
 ** Add configurable noise reduction
 #+begin_quote
-One common approach is to preprocess the raw audio data by applying noise reduction algorithms before the audio is segmented for VAD and transcription. For instance, you might use a library such as [`noisereduce`](https://github.com/timsainb/noisereduce) to perform spectral gating or other forms of noise reduction. Here’s an outline of how you might integrate this into your codebase:
+One common approach is to preprocess the raw audio data by applying noise
+reduction algorithms before the audio is segmented for VAD and transcription.
+For instance, you might use a library such as
+[`noisereduce`](https://github.com/timsainb/noisereduce) to perform spectral
+gating or other forms of noise reduction. Here’s an outline of how you might
+integrate this into your codebase:
 
 1. **Install the noise reduction library:**
    You can install `noisereduce` via pip:
@@ -59,7 +51,9 @@ One common approach is to preprocess the raw audio data by applying noise reduct
    ```
 
 2. **Create a noise reduction function:**
-   Write a pure function that accepts a NumPy array (your raw audio samples) and the sample rate, applies noise reduction, and returns the cleaned signal. For example:
+   Write a pure function that accepts a NumPy array (your raw audio samples) and
+   the sample rate, applies noise reduction, and returns the cleaned signal. For
+   example:
 
    ```python
    import noisereduce as nr
@@ -87,7 +81,10 @@ One common approach is to preprocess the raw audio data by applying noise reduct
    ```
 
 3. **Integrate noise reduction into your audio processing pipeline:**
-   In your `process_audio_segment` function (or wherever you combine the segments), convert the concatenated audio data into a NumPy array and then apply the noise reduction function. For example, just before generating the WAV bytes, you can do:
+   In your `process_audio_segment` function (or wherever you combine the
+   segments), convert the concatenated audio data into a NumPy array and then
+   apply the noise reduction function. For example, just before generating the
+   WAV bytes, you can do:
 
    ```python
    # After gathering and concatenating segments:
@@ -107,9 +104,27 @@ One common approach is to preprocess the raw audio data by applying noise reduct
    ```
 
 4. **Consider making noise reduction configurable:**
-   Since noise reduction can be computationally intensive and its benefits may vary depending on the environment, you might add an option in your configuration to enable or disable this preprocessing step.
-
+   Since noise reduction can be computationally intensive and its benefits may
+   vary depending on the environment, you might add an option in your
+   configuration to enable or disable this preprocessing step.
 #+end_quote
 ** Get streaming to work
 At time of writing, it is very slow and inaccurate. I'm not sure why, I haven't
 started to dig into it. But batching works fine
+** Store transcripts somewhere
+Right now they're just output to the terminal, but storing them in a file would
+be way better
+** Use diarization to indicate different speakers
+#+begin_quote
+Use a dedicated speaker diarization tool like
+[pyannote.audio](https://github.com/pyannote/pyannote-audio) or related
+services. These libraries can process the audio (separately from transcription)
+and output segments with speaker labels. You would run your captured audio
+through diarization and then merge its output with the transcript. For example:
+
+- Capture the audio along with its timestamps.
+- Run your audio through a diarization pipeline to determine speaker segments.
+- Annotate your transcript by matching timestamps to those segments (e.g.,
+  assign "Speaker 1" to segments that overlap with the diarization label for
+  speaker 1).
+#+end_quote
