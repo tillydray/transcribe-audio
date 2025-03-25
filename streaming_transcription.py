@@ -22,7 +22,7 @@ async def connect_transcription_session():
     and send the initial configuration payload.
     """
     import websockets
-    from transcribe_service.config import OPENAI_API_KEY
+    from transcribe_service.config import OPENAI_API_KEY, INPUT_AUDIO_FORMAT, STREAMING_MODEL, STREAMING_PROMPT, STREAMING_THRESHOLD, STREAMING_PREFIX_PADDING_MS, STREAMING_SILENCE_DURATION_MS, LANGUAGE_CODE
 
     url = "wss://api.openai.com/v1/realtime?intent=transcription"
     headers = {"Authorization": f"Bearer {OPENAI_API_KEY}"}
@@ -31,24 +31,24 @@ async def connect_transcription_session():
     # Define the initial configuration payload for the transcription session.
     # The payload includes:
     # - type: specifies the message type for the session update.
-    # - input_audio_format: the format of the incoming audio (here "pcm16").
-    # - input_audio_transcription: configuration for the transcription model, including model name, prompt, and language.
-    # - turn_detection: VAD settings for detecting speech turns, including threshold, prefix padding, and silence duration.
+    # - input_audio_format: uses the configured audio format.
+    # - input_audio_transcription: configuration for the transcription model using configured model, prompt, and language.
+    # - turn_detection: VAD settings for detecting speech turns using configured parameters.
     # - input_audio_noise_reduction: settings to enable noise reduction.
     # - include: list of additional data to include in the response.
     initial_payload = {
         "type": "transcription_session.update",
-        "input_audio_format": "pcm16",
+        "input_audio_format": INPUT_AUDIO_FORMAT,
         "input_audio_transcription": {
-            "model": "gpt-4o-transcribe",
-            "prompt": "",
-            "language": ""
+            "model": STREAMING_MODEL,
+            "prompt": STREAMING_PROMPT,
+            "language": LANGUAGE_CODE
         },
         "turn_detection": {
             "type": "server_vad",
-            "threshold": 0.5,
-            "prefix_padding_ms": 300,
-            "silence_duration_ms": 500
+            "threshold": STREAMING_THRESHOLD,
+            "prefix_padding_ms": STREAMING_PREFIX_PADDING_MS,
+            "silence_duration_ms": STREAMING_SILENCE_DURATION_MS
         },
         "input_audio_noise_reduction": {
             "type": "near_field"
