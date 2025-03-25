@@ -11,6 +11,7 @@ import queue
 import threading
 import time
 import wave
+import numpy as np
 from openai import OpenAI
 from dotenv import load_dotenv
 
@@ -51,8 +52,11 @@ def process_audio_segment():
                 if segments:
                     break
         if segments:
-            # Concatenate all collected frames
-            audio_data = b"".join(chunk.tobytes() for chunk in segments)
+            # Convert each chunk from float32 to int16 and concatenate
+            processed_chunks = [
+                (chunk * 32767).astype(np.int16).tobytes() for chunk in segments
+            ]
+            audio_data = b"".join(processed_chunks)
             # Write into an in-memory WAV file with a proper header
             wav_buffer = io.BytesIO()
             with wave.open(wav_buffer, 'wb') as wf:
@@ -69,9 +73,9 @@ def process_audio_segment():
                     model="gpt-4o-transcribe",
                     # stream=True,
                     language="en",
-                    prompt="",
-                    temperature=0,
-                    timestamp_granularities="segment"
+                    # prompt="",
+                    # temperature=0,
+                    # timestamp_granularities="segment"
                 )
                 print("Transcription:", response.text)
             except Exception as e:
