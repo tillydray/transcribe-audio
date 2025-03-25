@@ -1,4 +1,4 @@
-#/usr/bin/env python3
+# /usr/bin/env python3
 """
 Module for capturing audio from an input stream, converting it to WAV format,
 and transcribing it via the OpenAI API.
@@ -20,7 +20,13 @@ from transcribe_service.config import LANGUAGE_CODE, CHANNELS, SAMPLERATE, SEGME
 logger = logging.logger
 vad_detector = VoiceActivityDetector(mode=1, frame_duration_ms=30)
 
+
 def process_audio_segment(initial_topic: str) -> None:
+    """Process audio segments by collecting audio frames from the queue, applying VAD, and transcribing speech.
+    
+    Parameters:
+        initial_topic (str): The initial topic for transcription.
+    """
     current_topic = initial_topic
     full_transcript = ""
     last_topic_update = time.time()
@@ -48,10 +54,16 @@ def process_audio_segment(initial_topic: str) -> None:
                 logger.info("No frames generated, skipping segment.")
                 continue
             padded_voiced_segments = list(
-                vad_collector(SAMPLERATE, vad_detector.frame_duration_ms, 300, vad_detector.vad, frames)
+                vad_collector(
+                    SAMPLERATE,
+                    vad_detector.frame_duration_ms,
+                    300,
+                    vad_detector.vad,
+                    frames)
             )
             if not padded_voiced_segments:
-                logger.info("Silence detected (via vad_collector), skipping transcription for this segment.")
+                logger.info(
+                    "Silence detected (via vad_collector), skipping transcription for this segment.")
                 continue
             voiced_audio = b"".join(padded_voiced_segments)
             wav_buffer = io.BytesIO()
@@ -80,7 +92,8 @@ def process_audio_segment(initial_topic: str) -> None:
                 full_transcript += "\n" + current_transcript
                 now = time.time()
                 if now - last_topic_update >= 60 and refinements < 10:
-                    new_topic = generate_topic_from_context(full_transcript, initial_topic, current_topic, LANGUAGE_CODE)
+                    new_topic = generate_topic_from_context(
+                        full_transcript, initial_topic, current_topic, LANGUAGE_CODE)
                     logger.info("Refined topic: %s", new_topic)
                     current_topic = new_topic
                     last_topic_update = now
@@ -88,7 +101,13 @@ def process_audio_segment(initial_topic: str) -> None:
         else:
             time.sleep(0.1)
 
+
 def main() -> None:
+    """Main entry point for the transcription application.
+    
+    Prompts for the transcription topic, starts the audio processing thread, lists available audio devices,
+    and begins audio capture.
+    """
     topic = input("Enter the transcription topic (press Enter for a generic topic): ")
     if not topic.strip():
         topic = "general conversation"
@@ -100,7 +119,8 @@ def main() -> None:
 
     devices = list_input_devices()
     default_input_idx = sd.default.device[0]
-    reindexed_devices = [(new_idx, orig_idx, dev) for new_idx, (orig_idx, dev) in enumerate(devices)]
+    reindexed_devices = [(new_idx, orig_idx, dev)
+                         for new_idx, (orig_idx, dev) in enumerate(devices)]
     print("Available input devices:")
     for new_idx, orig_idx, dev in reindexed_devices:
         default_str = " (default)" if orig_idx == default_input_idx else ""
@@ -119,6 +139,7 @@ def main() -> None:
             device_to_use_index = default_input_idx
     device_to_use = sd.query_devices(device_to_use_index)['name']
     start_audio_capture(device_to_use, CHANNELS, SAMPLERATE)
+
 
 if __name__ == '__main__':
     main()
