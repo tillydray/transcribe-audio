@@ -63,12 +63,16 @@ async def connect_transcription_session():
 async def send_audio_chunks(ws, audio_source):
     """Continuously send audio chunks from the audio_source over the WebSocket connection.
 
+    Splits audio data into parts of max_chunk_size bytes with an overlap to ensure continuity if needed.
+
     Parameters:
         ws: The active WebSocket connection.
-        audio_source: An asynchronous source (e.g., a queue) providing audio chunks.
+        audio_source: An asynchronous source (e.g., an asyncio.Queue) providing audio chunks.
     """
     import asyncio
     max_chunk_size = 4096
+    # Set overlap size (in bytes) to provide overlapping segments if needed.
+    overlap_size = 512
     while True:
         try:
             chunk = await audio_source.get()
@@ -79,10 +83,11 @@ async def send_audio_chunks(ws, audio_source):
             await asyncio.sleep(0.01)
             continue
         offset = 0
+        # Send chunks with an overlap between consecutive parts.
         while offset < len(chunk):
             part = chunk[offset: offset + max_chunk_size]
             await ws.send(part)
-            offset += max_chunk_size
+            offset += (max_chunk_size - overlap_size) if max_chunk_size > overlap_size else max_chunk_size
 
 
 async def audio_buffer_generator(audio_source):
