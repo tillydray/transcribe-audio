@@ -149,3 +149,21 @@ async def manage_streaming():
     sending_task = asyncio.create_task(send_audio_chunks(ws, audio_source))
     receiving_task = asyncio.create_task(handle_incoming_transcriptions(ws))
     await asyncio.gather(sending_task, receiving_task)
+
+async def manage_streaming_with_reconnect():
+    """Manage the streaming workflow with automatic reconnection using exponential backoff.
+    
+    This function wraps the connection and streaming logic in a resilient loop. If the session 
+    fails due to an exception, it will wait for an exponentially increasing delay before reconnecting.
+    """
+    delay = 1
+    max_delay = 60
+    while True:
+        try:
+            logging.getLogger(__name__).info("Starting streaming session.")
+            await manage_streaming()
+        except Exception as e:
+            logging.getLogger(__name__).error("Streaming session terminated unexpectedly: %s", e)
+        logging.getLogger(__name__).info("Reconnecting in %d seconds...", delay)
+        await asyncio.sleep(delay)
+        delay = min(delay * 2, max_delay)
