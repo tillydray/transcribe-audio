@@ -13,7 +13,7 @@ import time
 import wave
 import numpy as np
 from openai import OpenAI
-from vad import VoiceActivityDetector
+import vad
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -25,7 +25,7 @@ DEVICE_NAME = "Aggregate Device"
 CHANNELS = 1
 SAMPLERATE = 16000
 SEGMENT_SECONDS = 5  # Collect 5 seconds of audio for each transcription
-vad_detector = VoiceActivityDetector(mode=1, frame_duration_ms=30)
+vad_detector = vad.VoiceActivityDetector(mode=1, frame_duration_ms=30)
 
 
 def enque_audio(indata, frames, time_info, status):
@@ -67,7 +67,7 @@ def process_audio_segment():
                 continue
             # Use vad_collector to yield only voiced segments, with 300 ms padding.
             padded_voiced_segments = list(
-                vad_collector(SAMPLERATE, vad_detector.frame_duration_ms, 300, vad_detector.vad, frames)
+                vad.vad_collector(SAMPLERATE, vad_detector.frame_duration_ms, 300, vad_detector.vad, frames)
             )
             if not padded_voiced_segments:
                 print("Silence detected (via vad_collector), skipping transcription for this segment.")
@@ -120,21 +120,26 @@ def main():
 
     # Prompt user for audio device selection
     devices = sd.query_devices()
-    input_devices = [d for d in devices if d['max_input_channels'] > 0]
+    all_input_devices = [(i, d) for i, d in enumerate(devices) if d['max_input_channels'] > 0]
+    default_input_idx = sd.default.device[0]
+    reindexed_devices = [(new_idx, orig_idx, dev) for new_idx, (orig_idx, dev) in enumerate(all_input_devices)]
     print("Available input devices:")
-    for i, dev in enumerate(input_devices):
-        print(f"  {i}: {dev['name']}")
+    for new_idx, orig_idx, dev in reindexed_devices:
+        default_str = " (default)" if orig_idx == default_input_idx else ""
+        print(f"  {new_idx}: {dev['name']}{default_str}")
     choice = input("Select an audio device (press Enter for default): ")
     if choice.strip() == "":
-        device_to_use = sd.default.device[0]
+        device_to_use_index = default_input_idx
         print("Using default input device.")
     else:
         try:
-            idx = int(choice)
-            device_to_use = input_devices[idx]['name']
+            new_idx = int(choice)
+            orig_idx = reindexed_devices[new_idx][1]
+            device_to_use_index = orig_idx
         except Exception as e:
             print("Invalid selection, using default input device.")
-            device_to_use = sd.default.device[0]
+            device_to_use_index = default_input_idx
+    device_to_use = sd.query_devices(device_to_use_index)['name']
 
     try:
         with sd.InputStream(
