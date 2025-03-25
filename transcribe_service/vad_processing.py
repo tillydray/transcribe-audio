@@ -80,9 +80,10 @@ def vad_collector(sample_rate: int, frame_duration_ms: int,
     triggered = False
 
     voiced_frames = []
+    log = ""
     for frame in frames:
         is_speech = vad.is_speech(frame, sample_rate)
-        logger.debug('1' if is_speech else '0')
+        log += '1' if is_speech else '0'
         if not triggered:
             ring_buffer.append((frame, is_speech))
             num_voiced = len([f for f, speech in ring_buffer if speech])
@@ -104,6 +105,7 @@ def vad_collector(sample_rate: int, frame_duration_ms: int,
                 voiced_frames = []
     if triggered:
         logger.debug('-')
+    logger.debug(log)
     logger.debug('\n')
     if voiced_frames:
         yield b''.join(voiced_frames)
