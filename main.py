@@ -38,6 +38,7 @@ def process_audio_segment():
     """Accumulate audio data and call the transcription API."""
     # Calculate the number of frames we need for SEGMENT_SECONDS of audio.
     frames_per_segment = SAMPLERATE * SEGMENT_SECONDS
+    prev_transcript = ""
     while True:
         collected_frames = 0
         segments = []
@@ -67,17 +68,28 @@ def process_audio_segment():
             wav_buffer.seek(0)
             # Prepare file tuple. Some APIs expect (filename, fileobj, mimetype)
             file_tuple = ("audio.wav", wav_buffer, "audio/wav")
+            # Build the prompt dynamically using previous transcript if available.
+            if prev_transcript:
+                prompt = (
+                    f"Here is the transcript of the previous segment (omit any filler words):\n"
+                    f"{prev_transcript}\n"
+                    f"Now, transcribe the current audio segment with proper punctuation, ensuring clarity and conciseness:"
+                )
+            else:
+                prompt = (
+                    "Transcribe the current audio segment with proper punctuation, ensuring clarity and conciseness, and exclude common filler words:"
+                )
             try:
                 response = client.audio.transcriptions.create(
                     file=file_tuple,
                     model="gpt-4o-transcribe",
-                    # stream=True,
                     language="en",
-                    # prompt="",
-                    # temperature=0,
-                    # timestamp_granularities="segment"
+                    prompt=prompt,
+                    temperature=0
                 )
-                print("Transcription:", response.text)
+                current_transcript = response.text
+                print("Transcription:", current_transcript)
+                prev_transcript = current_transcript
             except Exception as e:
                 print("Error calling transcription API:", e)
         else:
