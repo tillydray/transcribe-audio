@@ -1,4 +1,5 @@
 import webrtcvad
+from typing import Generator, Iterable
 import collections
 import internal_logging as logging
 
@@ -6,7 +7,7 @@ logger = logging.logger
 
 
 class VoiceActivityDetector:
-    def __init__(self, mode=1, frame_duration_ms=30):
+    def __init__(self, mode: int = 1, frame_duration_ms: int = 30) -> None:
         """
         Initialize the VAD.
 
@@ -18,7 +19,7 @@ class VoiceActivityDetector:
         self.vad.set_mode(mode)
         self.frame_duration_ms = frame_duration_ms
 
-    def frame_generator(self, audio, sample_rate):
+    def frame_generator(self, audio: bytes, sample_rate: int) -> Generator[bytes, None, None]:
         """
         Generate audio frames of fixed duration.
 
@@ -37,7 +38,7 @@ class VoiceActivityDetector:
                 break
             yield audio[offset:offset+frame_size]
 
-    def is_speech(self, audio, sample_rate):
+    def is_speech(self, audio: bytes, sample_rate: int) -> bool:
         """
         Determine whether the given audio contains speech.
 
@@ -60,8 +61,8 @@ class VoiceActivityDetector:
         return speech_frames > len(frames) / 2
 
 
-def vad_collector(sample_rate, frame_duration_ms,
-                  padding_duration_ms, vad, frames):
+def vad_collector(sample_rate: int, frame_duration_ms: int,
+                  padding_duration_ms: int, vad: webrtcvad.Vad, frames: Iterable[bytes]) -> Generator[bytes, None, None]:
     """
     Filters out non-voiced audio frames.
 

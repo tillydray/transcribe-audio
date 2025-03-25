@@ -38,7 +38,7 @@ SEGMENT_SECONDS = 5  # Collect 5 seconds of audio for each transcription
 vad_detector = vad.VoiceActivityDetector(mode=1, frame_duration_ms=30)
 
 
-def enque_audio(indata, frames, time_info, status):
+def enque_audio(indata: np.ndarray, frames: int, time_info: dict, status: object) -> None:
     """Enqueue a copy of the incoming audio data into the global audio_queue."""
     if status:
         logger.debug("Streaming status: %s", status)
@@ -46,7 +46,7 @@ def enque_audio(indata, frames, time_info, status):
     audio_queue.put(indata.copy())
 
 
-def generate_topic_from_context(full_transcript, initial_topic, previous_topic):
+def generate_topic_from_context(full_transcript: str, initial_topic: str, previous_topic: str) -> str:
     """Generate a refined topic from the full transcript, the user-input initial topic,
     and the previously generated topic using the LLM.
     """
@@ -70,7 +70,7 @@ def generate_topic_from_context(full_transcript, initial_topic, previous_topic):
         return previous_topic
 
 
-def process_audio_segment(initial_topic):
+def process_audio_segment(initial_topic: str) -> None:
     """Accumulate audio data and call the transcription API.
     
     Arguments:
@@ -163,7 +163,7 @@ def process_audio_segment(initial_topic):
             time.sleep(0.1)
 
 
-def main():
+def main() -> None:
     """Start the audio processing worker thread and initiates the audio stream."""
     # Prompt user for transcription topic
     topic = input("Enter the transcription topic (press Enter for a generic topic): ")
