@@ -1,3 +1,4 @@
+"""Module for capturing audio from input devices and enqueuing audio data for transcription."""
 import sounddevice as sd
 import numpy as np
 import time
@@ -15,11 +16,17 @@ def enque_audio(indata: np.ndarray, frames: int, time_info: dict, status: object
     audio_queue.put(indata.copy())
 
 def list_input_devices():
+    """Return a list of input devices that have available input channels."""
     devices = sd.query_devices()
     all_input_devices = [(i, d) for i, d in enumerate(devices) if d['max_input_channels'] > 0]
     return all_input_devices
 
 def start_audio_capture(device_name: str, channels: int, samplerate: int):
+    """Start capturing audio from the specified device.
+
+    This function opens an InputStream using the given device, channels, and sample rate,
+    and continuously enqueues audio data until interrupted.
+    """
     try:
         with sd.InputStream(
             device=device_name,

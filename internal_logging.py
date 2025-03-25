@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-
+"""Module for configuring and providing the application logger."""
 import dotenv
 import logging
 import os

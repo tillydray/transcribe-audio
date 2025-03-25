@@ -1,3 +1,4 @@
+"""Module for Voice Activity Detection (VAD) and audio frame processing."""
 import webrtcvad
 from typing import Generator, Iterable
 import collections

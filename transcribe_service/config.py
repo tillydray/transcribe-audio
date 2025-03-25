@@ -1,3 +1,4 @@
+"""Module for configuration constants for the audio transcription service."""
 import dotenv
 import locale
 import os
