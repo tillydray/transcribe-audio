@@ -140,4 +140,8 @@ async def manage_streaming():
     sending audio data, and handling incoming messages with error handling
     and reconnection logic.
     """
-    pass
+    ws = await connect_transcription_session()
+    audio_source = asyncio.Queue()
+    sending_task = asyncio.create_task(send_audio_chunks(ws, audio_source))
+    receiving_task = asyncio.create_task(handle_incoming_transcriptions(ws))
+    await asyncio.gather(sending_task, receiving_task)
