@@ -3,7 +3,7 @@
 This project captures audio from an input stream, converts it into a WAV file, 
 and transcribes it using the OpenAI API.
 
-** Setup
+* Setup
 
 1. Ensure you have Python 3 installed.
 2. (Optional) Create and activate a virtual environment.
@@ -21,7 +21,7 @@ and transcribes it using the OpenAI API.
    python -c "import sounddevice as sd; print(sd.query_devices())"
    #+end_src
 
-** Usage
+* Usage
 
 Run the project using:
 
@@ -32,7 +32,7 @@ python main.py
 Speak into your microphone and the project will capture 5-second segments of audio, 
 transcribe them using the OpenAI API, and print the transcriptions to the terminal.
 
-** Overview
+* Overview
 
 The project uses the following technologies:
 - Python 3
@@ -40,10 +40,73 @@ The project uses the following technologies:
 - OpenAI API for transcription
 - wave and io for audio file handling
 
-** Testing
+* Testing
 
 To run the unit tests, use:
 
 #+begin_src bash
 python -m unittest discover -v
 #+end_src
+* Future Ideas
+** Add configurable noise reduction
+#+begin_quote
+One common approach is to preprocess the raw audio data by applying noise reduction algorithms before the audio is segmented for VAD and transcription. For instance, you might use a library such as [`noisereduce`](https://github.com/timsainb/noisereduce) to perform spectral gating or other forms of noise reduction. Here’s an outline of how you might integrate this into your codebase:
+
+1. **Install the noise reduction library:**
+   You can install `noisereduce` via pip:
+   ```
+   pip install noisereduce
+   ```
+
+2. **Create a noise reduction function:**
+   Write a pure function that accepts a NumPy array (your raw audio samples) and the sample rate, applies noise reduction, and returns the cleaned signal. For example:
+
+   ```python
+   import noisereduce as nr
+   import numpy as np
+
+   def reduce_noise(audio_samples: np.ndarray, sample_rate: int) -> np.ndarray:
+       """
+       Reduce background noise from audio samples using spectral gating.
+
+       Parameters:
+           audio_samples (np.ndarray): The raw audio samples (e.g., int16).
+           sample_rate (int): The sample rate of the audio.
+
+       Returns:
+           np.ndarray: The noise-reduced audio samples.
+       """
+       # You might assume the first 0.5 seconds contain only noise,
+       # Or use an adaptive method to detect noise-only segments.
+       noise_duration = int(0.5 * sample_rate)
+       noise_profile = audio_samples[:noise_duration]
+
+       # Apply noise reduction; does not require explicit noise parameters.
+       reduced_audio = nr.reduce_noise(y=audio_samples, sr=sample_rate, y_noise=noise_profile)
+       return reduced_audio
+   ```
+
+3. **Integrate noise reduction into your audio processing pipeline:**
+   In your `process_audio_segment` function (or wherever you combine the segments), convert the concatenated audio data into a NumPy array and then apply the noise reduction function. For example, just before generating the WAV bytes, you can do:
+
+   ```python
+   # After gathering and concatenating segments:
+   raw_audio_data = b"".join(processed_chunks)
+
+   # Convert bytes into a NumPy array of type int16 (assuming 16-bit PCM)
+   audio_samples = np.frombuffer(raw_audio_data, dtype=np.int16)
+
+   # Apply noise reduction preprocessing
+   cleaned_samples = reduce_noise(audio_samples, SAMPLERATE)
+
+   # Convert the cleaned samples back to bytes for further processing
+   cleaned_audio_data = cleaned_samples.tobytes()
+
+   # Now use cleaned_audio_data for frame generation and transcription
+   frames = list(vad_detector.frame_generator(cleaned_audio_data, SAMPLERATE))
+   ```
+
+4. **Consider making noise reduction configurable:**
+   Since noise reduction can be computationally intensive and its benefits may vary depending on the environment, you might add an option in your configuration to enable or disable this preprocessing step.
+
+#+end_quote

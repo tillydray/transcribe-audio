@@ -8,6 +8,7 @@ import internal_logging as logging
 logger = logging.logger
 audio_queue = queue.Queue()
 
+
 def enque_audio(indata: np.ndarray, frames: int, time_info: dict, status: object) -> None:
     """Enqueue a copy of the incoming audio data into the global audio_queue."""
     if status:
@@ -15,11 +16,13 @@ def enque_audio(indata: np.ndarray, frames: int, time_info: dict, status: object
     # Simply enqueue the raw audio data (as a copy to avoid conflicts)
     audio_queue.put(indata.copy())
 
+
 def list_input_devices():
     """Return a list of input devices that have available input channels."""
     devices = sd.query_devices()
     all_input_devices = [(i, d) for i, d in enumerate(devices) if d['max_input_channels'] > 0]
     return all_input_devices
+
 
 def start_audio_capture(device_name: str, channels: int, samplerate: int):
     """Start capturing audio from the specified device.

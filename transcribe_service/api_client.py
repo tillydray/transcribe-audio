@@ -6,14 +6,15 @@ import os
 logger = logging.logger
 client = openai.OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
 
+
 def transcribe_audio(file_tuple, prompt: str, language: str) -> str:
     """Transcribe audio using the OpenAI API.
-    
+
     Parameters:
         file_tuple: tuple containing (filename, file object, mimetype)
         prompt (str): The transcription prompt.
         language (str): The language code for transcription.
-        
+
     Returns:
         str: The transcription text.
     """
@@ -39,15 +40,17 @@ def transcribe_audio(file_tuple, prompt: str, language: str) -> str:
     logger.error("Transcription API failed after %d attempts", max_attempts)
     return ""
 
-def generate_topic_from_context(full_transcript: str, initial_topic: str, previous_topic: str, language: str) -> str:
+
+def generate_topic_from_context(full_transcript: str, initial_topic: str,
+                                previous_topic: str, language: str) -> str:
     """Generate a refined topic from the conversation transcript using the OpenAI API.
-    
+
     Parameters:
         full_transcript (str): The full conversation transcript.
         initial_topic (str): The initial topic provided by the user.
         previous_topic (str): The previous refined topic.
         language (str): The language code for topic generation.
-        
+
     Returns:
         str: A refined topic.
     """

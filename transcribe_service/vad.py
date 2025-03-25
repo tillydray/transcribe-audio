@@ -37,7 +37,7 @@ class VoiceActivityDetector:
         for offset in range(0, len(audio), frame_size):
             if offset + frame_size > len(audio):
                 break
-            yield audio[offset:offset+frame_size]
+            yield audio[offset:offset + frame_size]
 
     def is_speech(self, audio: bytes, sample_rate: int) -> bool:
         """

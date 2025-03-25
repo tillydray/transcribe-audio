@@ -9,9 +9,10 @@ logger = logging.logger
 
 class VoiceActivityDetector:
     """A class for detecting voice activity in audio using WebRTC VAD."""
+
     def __init__(self, mode: int = 1, frame_duration_ms: int = 30) -> None:
         """Initialize the VoiceActivityDetector with a VAD mode and frame duration.
-        
+
         Parameters:
             mode (int): Aggressiveness mode between 0 and 3.
             frame_duration_ms (int): Duration of each audio frame in milliseconds.
@@ -22,11 +23,11 @@ class VoiceActivityDetector:
 
     def frame_generator(self, audio: bytes, sample_rate: int) -> Generator[bytes, None, None]:
         """Generate audio frames of fixed size from raw audio bytes.
-        
+
         Parameters:
             audio (bytes): The raw audio data.
             sample_rate (int): The audio sample rate.
-        
+
         Yields:
             Generator[bytes, None, None]: Stream of audio frames.
         """
@@ -40,11 +41,11 @@ class VoiceActivityDetector:
 
     def is_speech(self, audio: bytes, sample_rate: int) -> bool:
         """Determine if the majority of audio frames contain speech.
-        
+
         Parameters:
             audio (bytes): The raw audio data.
             sample_rate (int): The sample rate of the audio.
-        
+
         Returns:
             bool: True if speech is detected, False otherwise.
         """
@@ -63,14 +64,14 @@ class VoiceActivityDetector:
 def vad_collector(sample_rate: int, frame_duration_ms: int,
                   padding_duration_ms: int, vad: webrtcvad.Vad, frames: Iterable[bytes]) -> Generator[bytes, None, None]:
     """Collect and yield voiced segments from audio frames using VAD.
-    
+
     Parameters:
         sample_rate (int): The audio sample rate.
         frame_duration_ms (int): Duration of each frame in ms.
         padding_duration_ms (int): Duration of padding for voice detection in ms.
         vad (webrtcvad.Vad): An instance of WebRTC VAD.
         frames (Iterable[bytes]): Iterable of audio frames.
-    
+
     Yields:
         Generator[bytes, None, None]: Voiced audio segments concatenated as bytes.
     """

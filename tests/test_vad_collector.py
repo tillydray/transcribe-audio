@@ -1,6 +1,6 @@
 import unittest
 from transcribe_service.vad_processing import vad_collector
-import webrtcvad
+
 
 class FakeVAD:
     """
@@ -17,6 +17,7 @@ class FakeVAD:
             self.index += 1
             return result
         return False
+
 
 class TestVadCollector(unittest.TestCase):
     def test_vad_collector_yields_voiced_segment(self):

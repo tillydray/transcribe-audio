@@ -23,7 +23,7 @@ vad_detector = VoiceActivityDetector(mode=1, frame_duration_ms=30)
 
 def process_audio_segment(initial_topic: str) -> None:
     """Process audio segments by collecting audio frames from the queue, applying VAD, and transcribing speech.
-    
+
     Parameters:
         initial_topic (str): The initial topic for transcription.
     """
@@ -104,7 +104,7 @@ def process_audio_segment(initial_topic: str) -> None:
 
 def main() -> None:
     """Main entry point for the transcription application.
-    
+
     Prompts for the transcription topic, starts the audio processing thread, lists available audio devices,
     and begins audio capture.
     """
@@ -134,7 +134,7 @@ def main() -> None:
             new_idx = int(choice)
             orig_idx = reindexed_devices[new_idx][1]
             device_to_use_index = orig_idx
-        except Exception as e:
+        except Exception:
             logger.warning("Invalid selection, using default input device.")
             device_to_use_index = default_input_idx
     device_to_use = sd.query_devices(device_to_use_index)['name']
