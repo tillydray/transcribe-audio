@@ -18,6 +18,32 @@ from transcribe_service.api_client import transcribe_audio, generate_topic_from_
 from transcribe_service.config import LANGUAGE_CODE, CHANNELS, SAMPLERATE, SEGMENT_SECONDS
 from streaming_transcription import manage_streaming_with_reconnect
 
+def select_audio_device(devices):
+    """
+    Prompt the user to select an audio input device from the given devices list.
+    Returns the selected device's name.
+    """
+    import sounddevice as sd
+    default_input_idx = sd.default.device[0]
+    reindexed_devices = [(new_idx, orig_idx, dev) for new_idx, (orig_idx, dev) in enumerate(devices)]
+    print("Available input devices:")
+    for new_idx, orig_idx, dev in reindexed_devices:
+        default_str = " (default)" if orig_idx == default_input_idx else ""
+        print(f"  {new_idx}: {dev['name']}{default_str}")
+    choice = input("Select an audio device (press Enter for default): ")
+    if choice.strip() == "":
+        print("Using default input device.")
+        device_to_use_index = default_input_idx
+    else:
+        try:
+            new_idx = int(choice)
+            device_to_use_index = reindexed_devices[new_idx][1]
+        except Exception:
+            print("Invalid selection, using default input device.")
+            device_to_use_index = default_input_idx
+    device = sd.query_devices(device_to_use_index)['name']
+    return device
+
 logger = logging.logger
 vad_detector = VoiceActivityDetector(mode=1, frame_duration_ms=30)
 
@@ -109,9 +135,43 @@ def main() -> None:
     Prompts for the transcription topic, starts the audio processing thread, lists available audio devices,
     and begins audio capture.
     """
+    import threading
     mode = input("Select transcription mode - Batch (B) or Streaming (S): ")
+    devices = list_input_devices()
     if mode.lower() == "s":
         print("Starting streaming transcription mode.")
+        # Device selection (reuse code from batch mode)
+        default_input_idx = sd.default.device[0]
+        reindexed_devices = [(new_idx, orig_idx, dev)
+                             for new_idx, (orig_idx, dev) in enumerate(devices)]
+        print("Available input devices:")
+        for new_idx, orig_idx, dev in reindexed_devices:
+            default_str = " (default)" if orig_idx == default_input_idx else ""
+            print(f"  {new_idx}: {dev['name']}{default_str}")
+        choice = input("Select an audio device (press Enter for default): ")
+        if choice.strip() == "":
+            device_to_use_index = default_input_idx
+            print("Using default input device.")
+        else:
+            try:
+                new_idx = int(choice)
+                orig_idx = reindexed_devices[new_idx][1]
+                device_to_use_index = orig_idx
+            except Exception:
+                print("Invalid selection, using default input device.")
+                device_to_use_index = default_input_idx
+        device_to_use = sd.query_devices(device_to_use_index)['name']
+        # Start audio capture in a separate thread
+        thread = threading.Thread(
+            target=start_audio_capture,
+            args=(
+                device_to_use,
+                CHANNELS,
+                SAMPLERATE),
+            daemon=True)
+        thread.start()
+        # Now run the streaming manager which will bridge the captured audio into
+        # the streaming workflow.
         import asyncio
         asyncio.run(manage_streaming_with_reconnect())
         return
@@ -125,26 +185,7 @@ def main() -> None:
     worker.start()
 
     devices = list_input_devices()
-    default_input_idx = sd.default.device[0]
-    reindexed_devices = [(new_idx, orig_idx, dev)
-                         for new_idx, (orig_idx, dev) in enumerate(devices)]
-    print("Available input devices:")
-    for new_idx, orig_idx, dev in reindexed_devices:
-        default_str = " (default)" if orig_idx == default_input_idx else ""
-        print(f"  {new_idx}: {dev['name']} {default_str}")
-    choice = input("Select an audio device (press Enter for default): ")
-    if choice.strip() == "":
-        device_to_use_index = default_input_idx
-        print("Using default input device.")
-    else:
-        try:
-            new_idx = int(choice)
-            orig_idx = reindexed_devices[new_idx][1]
-            device_to_use_index = orig_idx
-        except Exception:
-            logger.warning("Invalid selection, using default input device.")
-            device_to_use_index = default_input_idx
-    device_to_use = sd.query_devices(device_to_use_index)['name']
+    device_to_use = select_audio_device(devices)
     start_audio_capture(device_to_use, CHANNELS, SAMPLERATE)
 
 
