@@ -13,7 +13,9 @@ import asyncio
 import json
 import logging
 
+
 logger = logging.getLogger(__name__)
+
 
 async def connect_transcription_session():
     """Establish a WebSocket connection to the streaming transcription service
@@ -26,6 +28,14 @@ async def connect_transcription_session():
     headers = {"Authorization": f"Bearer {OPENAI_API_KEY}"}
     ws = await websockets.connect(url, extra_headers=headers)
 
+    # Define the initial configuration payload for the transcription session.
+    # The payload includes:
+    # - type: specifies the message type for the session update.
+    # - input_audio_format: the format of the incoming audio (here "pcm16").
+    # - input_audio_transcription: configuration for the transcription model, including model name, prompt, and language.
+    # - turn_detection: VAD settings for detecting speech turns, including threshold, prefix padding, and silence duration.
+    # - input_audio_noise_reduction: settings to enable noise reduction.
+    # - include: list of additional data to include in the response.
     initial_payload = {
         "type": "transcription_session.update",
         "input_audio_format": "pcm16",
@@ -49,25 +59,28 @@ async def connect_transcription_session():
     logger.info("Sent initial configuration payload for transcription session.")
     return ws
 
+
 async def send_audio_chunks(ws, audio_source):
     """Continuously send audio chunks from the audio_source over the WebSocket connection.
-    
+
     Parameters:
         ws: The active WebSocket connection.
         audio_source: An asynchronous source (e.g., a queue) providing audio chunks.
     """
     pass
 
+
 async def handle_incoming_transcriptions(ws):
     """Handle incoming transcription messages from the WebSocket connection.
-    
+
     Parameters:
         ws: The active WebSocket connection.
     """
     pass
 
+
 async def manage_streaming():
-    """Manage the overall streaming workflow including connection, 
+    """Manage the overall streaming workflow including connection,
     sending audio data, and handling incoming messages with error handling
     and reconnection logic.
     """
