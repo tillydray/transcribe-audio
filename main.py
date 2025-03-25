@@ -13,6 +13,7 @@ import time
 import wave
 import numpy as np
 from openai import OpenAI
+from vad import VoiceActivityDetector
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -24,6 +25,7 @@ DEVICE_NAME = "Aggregate Device"
 CHANNELS = 1
 SAMPLERATE = 16000
 SEGMENT_SECONDS = 5  # Collect 5 seconds of audio for each transcription
+vad_detector = VoiceActivityDetector(mode=2, frame_duration_ms=30)
 
 
 def enque_audio(indata, frames, time_info, status):
@@ -65,6 +67,10 @@ def process_audio_segment():
                 (chunk * 32767).astype(np.int16).tobytes() for chunk in segments
             ]
             audio_data = b"".join(processed_chunks)
+            # Use the VAD to verify that the segment contains speech.
+            if not vad_detector.is_speech(audio_data, SAMPLERATE):
+                print("Silence detected, skipping transcription for this segment.")
+                continue
             # Write into an in-memory WAV file with a proper header
             wav_buffer = io.BytesIO()
             with wave.open(wav_buffer, 'wb') as wf:
