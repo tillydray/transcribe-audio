@@ -4,7 +4,6 @@ Module for capturing audio from an input stream, converting it to WAV format,
 and transcribing it via the OpenAI API.
 """
 
-import sounddevice as sd
 import threading
 import queue
 import time

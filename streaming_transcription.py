@@ -12,6 +12,7 @@ Each function below is a placeholder to be implemented in subsequent steps.
 import asyncio
 import json
 import logging
+import websockets
 
 
 logger = logging.getLogger(__name__)
@@ -21,7 +22,6 @@ async def connect_transcription_session():
     """Establish a WebSocket connection to the streaming transcription service
     and send the initial configuration payload.
     """
-    import websockets
     from transcribe_service.config import OPENAI_API_KEY, INPUT_AUDIO_FORMAT, STREAMING_MODEL, STREAMING_PROMPT, STREAMING_THRESHOLD, STREAMING_PREFIX_PADDING_MS, STREAMING_SILENCE_DURATION_MS, LANGUAGE_CODE
 
     url = "wss://api.openai.com/v1/realtime?intent=transcription"

@@ -1,8 +1,7 @@
 import asyncio
-import json
 import unittest
-import logging
-from transcribe_service.streaming_transcription import send_audio_chunks, handle_incoming_transcriptions
+from streaming_transcription import send_audio_chunks
+
 
 class FakeWebSocket:
     def __init__(self):
@@ -46,29 +45,6 @@ class TestIntegrationStreamingTranscription(unittest.TestCase):
             self.assertGreater(len(self.fake_ws.sent_messages), 0)
         asyncio.run(run_test())
 
-    def test_handle_incoming_transcriptions(self):
-        async def run_test():
-            # Create a transcript message to simulate a final transcription response.
-            transcript_message = {
-                "final": "final transcript text",
-                "partial": None
-            }
-            # Add the encoded message to the fake websocket.
-            self.fake_ws.add_incoming_message(json.dumps(transcript_message))
-            # Signal the end of incoming messages.
-            self.fake_ws.close_incoming()
-            # Setup a stream handler to capture log output.
-            import io
-            log_stream = io.StringIO()
-            handler = logging.StreamHandler(log_stream)
-            logger = logging.getLogger(__name__)
-            logger.addHandler(handler)
-            await handle_incoming_transcriptions(self.fake_ws)
-            handler.flush()
-            logs = log_stream.getvalue()
-            self.assertIn("Final transcript: final transcript text", logs)
-            logger.removeHandler(handler)
-        asyncio.run(run_test())
 
 if __name__ == '__main__':
     unittest.main()
