@@ -67,7 +67,22 @@ async def send_audio_chunks(ws, audio_source):
         ws: The active WebSocket connection.
         audio_source: An asynchronous source (e.g., a queue) providing audio chunks.
     """
-    pass
+    import asyncio
+    max_chunk_size = 4096
+    while True:
+        try:
+            chunk = await audio_source.get()
+        except Exception:
+            await asyncio.sleep(0.01)
+            continue
+        if not chunk:
+            await asyncio.sleep(0.01)
+            continue
+        offset = 0
+        while offset < len(chunk):
+            part = chunk[offset: offset + max_chunk_size]
+            await ws.send(part)
+            offset += max_chunk_size
 
 
 async def audio_buffer_generator(audio_source):
