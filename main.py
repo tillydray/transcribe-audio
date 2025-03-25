@@ -25,7 +25,7 @@ DEVICE_NAME = "Aggregate Device"
 CHANNELS = 1
 SAMPLERATE = 16000
 SEGMENT_SECONDS = 5  # Collect 5 seconds of audio for each transcription
-vad_detector = VoiceActivityDetector(mode=2, frame_duration_ms=30)
+vad_detector = VoiceActivityDetector(mode=1, frame_duration_ms=30)
 
 
 def enque_audio(indata, frames, time_info, status):
@@ -55,29 +55,32 @@ def process_audio_segment():
                 if segments:
                     break
         if segments:
-            # Calculate the RMS energy of the segment to detect silence.
-            rms_values = [np.sqrt(np.mean(chunk**2)) for chunk in segments]
-            avg_rms = np.mean(rms_values)
-            # Adjust the threshold value as needed
-            if avg_rms < 0.01:
-                print("Silence detected, skipping transcription for this segment.")
-                continue
             # Convert each chunk from float32 to int16 and concatenate
             processed_chunks = [
                 (chunk * 32767).astype(np.int16).tobytes() for chunk in segments
             ]
             audio_data = b"".join(processed_chunks)
-            # Use the VAD to verify that the segment contains speech.
-            if not vad_detector.is_speech(audio_data, SAMPLERATE):
-                print("Silence detected, skipping transcription for this segment.")
+            # Generate frames using the VAD's frame_generator.
+            frames = list(vad_detector.frame_generator(audio_data, SAMPLERATE))
+            if not frames:
+                print("No frames generated, skipping segment.")
                 continue
-            # Write into an in-memory WAV file with a proper header
+            # Use vad_collector to yield only voiced segments, with 300 ms padding.
+            padded_voiced_segments = list(
+                vad_collector(SAMPLERATE, vad_detector.frame_duration_ms, 300, vad_detector.vad, frames)
+            )
+            if not padded_voiced_segments:
+                print("Silence detected (via vad_collector), skipping transcription for this segment.")
+                continue
+            # Concatenate the voiced segments.
+            voiced_audio = b"".join(padded_voiced_segments)
+            # Write the voiced audio into an in-memory WAV file with a proper header.
             wav_buffer = io.BytesIO()
             with wave.open(wav_buffer, 'wb') as wf:
                 wf.setnchannels(CHANNELS)
-                wf.setsampwidth(2)  # assuming 16-bit PCM
+                wf.setsampwidth(2)  # 16-bit PCM
                 wf.setframerate(SAMPLERATE)
-                wf.writeframes(audio_data)
+                wf.writeframes(voiced_audio)
             wav_buffer.seek(0)
             # Prepare file tuple. Some APIs expect (filename, fileobj, mimetype)
             file_tuple = ("audio.wav", wav_buffer, "audio/wav")
