@@ -53,6 +53,13 @@ def process_audio_segment():
                 if segments:
                     break
         if segments:
+            # Calculate the RMS energy of the segment to detect silence.
+            rms_values = [np.sqrt(np.mean(chunk**2)) for chunk in segments]
+            avg_rms = np.mean(rms_values)
+            # Adjust the threshold value as needed
+            if avg_rms < 0.01:
+                print("Silence detected, skipping transcription for this segment.")
+                continue
             # Convert each chunk from float32 to int16 and concatenate
             processed_chunks = [
                 (chunk * 32767).astype(np.int16).tobytes() for chunk in segments
