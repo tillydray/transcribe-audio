@@ -16,7 +16,7 @@ from transcribe_service.audio_capture import start_audio_capture, list_input_dev
 from transcribe_service.vad_processing import VoiceActivityDetector, vad_collector
 from transcribe_service.api_client import transcribe_audio, generate_topic_from_context
 from transcribe_service.config import LANGUAGE_CODE, CHANNELS, SAMPLERATE, SEGMENT_SECONDS
-from transcribe_service.streaming_transcription import manage_streaming_with_reconnect
+from streaming_transcription import manage_streaming_with_reconnect
 
 logger = logging.logger
 vad_detector = VoiceActivityDetector(mode=1, frame_duration_ms=30)
