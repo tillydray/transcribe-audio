@@ -86,7 +86,7 @@ async def send_audio_chunks(ws, audio_source):
         except Exception:
             await asyncio.sleep(0.01)
             continue
-        if not chunk:
+        if chunk is None or (hasattr(chunk, "size") and chunk.size == 0):
             await asyncio.sleep(0.01)
             continue
         offset = 0
@@ -96,7 +96,6 @@ async def send_audio_chunks(ws, audio_source):
             audio_b64 = base64.b64encode(part).decode('utf-8')
             payload = {
                 "type": "input_audio_buffer.append",
-                "session": SESSION_ID,
                 "audio": audio_b64,
             }
             try:
@@ -104,7 +103,8 @@ async def send_audio_chunks(ws, audio_source):
             except Exception as e:
                 logger.error("Error sending audio chunk: %s", e)
                 break
-            offset += (max_chunk_size - overlap_size) if max_chunk_size > overlap_size else max_chunk_size
+            offset += (max_chunk_size -
+                       overlap_size) if max_chunk_size > overlap_size else max_chunk_size
 
 
 async def audio_buffer_generator(audio_source):
@@ -126,9 +126,21 @@ async def audio_buffer_generator(audio_source):
         yield pcm_bytes
 
 
+async def audio_bridge(audio_source):
+    """Bridge the global audio_queue from audio_capture into the async audio_source queue."""
+    from transcribe_service.audio_capture import audio_queue
+    import asyncio
+    while True:
+        if not audio_queue.empty():
+            item = audio_queue.get()
+            await audio_source.put(item)
+        else:
+            await asyncio.sleep(0.01)
+
+
 async def handle_incoming_transcriptions(ws):
     """Handle incoming transcription messages from the WebSocket connection.
-    
+
     Parameters:
         ws: The active WebSocket connection.
     """
@@ -144,6 +156,48 @@ async def handle_incoming_transcriptions(ws):
                     if session:
                         SESSION_ID = session.get("id")
                         logger.info("Session created with ID: %s", SESSION_ID)
+                        from transcribe_service.config import (
+                            INPUT_AUDIO_FORMAT,
+                            STREAMING_MODEL,
+                            STREAMING_PROMPT,
+                            STREAMING_THRESHOLD,
+                            STREAMING_PREFIX_PADDING_MS,
+                            STREAMING_SILENCE_DURATION_MS,
+                            LANGUAGE_CODE,
+                        )
+                        update_payload = {
+                            "type": "session.update",
+                            "session": {
+                                "id": SESSION_ID,
+                                "modalities": ["text", "audio"],
+                                "instructions": "You are a helpful assistant.",
+                                "voice": "sage",
+                                "input_audio_format": INPUT_AUDIO_FORMAT,
+                                "output_audio_format": INPUT_AUDIO_FORMAT,
+                                "input_audio_transcription": {
+                                    "model": STREAMING_MODEL,
+                                    "prompt": STREAMING_PROMPT,
+                                    "language": LANGUAGE_CODE,
+                                },
+                                "turn_detection": {
+                                    "type": "server_vad",
+                                    "threshold": STREAMING_THRESHOLD,
+                                    "prefix_padding_ms": STREAMING_PREFIX_PADDING_MS,
+                                    "silence_duration_ms": STREAMING_SILENCE_DURATION_MS,
+                                    "create_response": True,
+                                },
+                                "input_audio_noise_reduction": {
+                                    "type": "near_field"
+                                },
+                                "include": ["item.input_audio_transcription.logprobs"],
+                                "tools": [],
+                                "tool_choice": "auto",
+                                "temperature": 0.8,
+                                "max_response_output_tokens": "inf",
+                            }
+                        }
+                        await ws.send(json.dumps(update_payload))
+                        logger.info("Sent session update with session details using session.update event.")
                     continue
                 partial = data.get("partial")
                 final = data.get("final")
@@ -167,9 +221,10 @@ async def manage_streaming():
     """
     ws = await connect_transcription_session()
     audio_source = asyncio.Queue()
+    bridge_task = asyncio.create_task(audio_bridge(audio_source))
     sending_task = asyncio.create_task(send_audio_chunks(ws, audio_source))
     receiving_task = asyncio.create_task(handle_incoming_transcriptions(ws))
-    await asyncio.gather(sending_task, receiving_task)
+    await asyncio.gather(sending_task, receiving_task, bridge_task)
 
 
 async def manage_streaming_with_reconnect():
