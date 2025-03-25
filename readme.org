@@ -110,3 +110,6 @@ One common approach is to preprocess the raw audio data by applying noise reduct
    Since noise reduction can be computationally intensive and its benefits may vary depending on the environment, you might add an option in your configuration to enable or disable this preprocessing step.
 
 #+end_quote
+** Get streaming to work
+At time of writing, it is very slow and inaccurate. I'm not sure why, I haven't
+started to dig into it. But batching works fine

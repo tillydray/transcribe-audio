@@ -15,7 +15,6 @@ import logging
 
 
 logger = logging.getLogger(__name__)
-SESSION_ID = None
 
 
 async def connect_transcription_session():
@@ -42,23 +41,24 @@ async def connect_transcription_session():
     # - include: list of additional data to include in the response.
     initial_payload = {
         "type": "transcription_session.update",
-        "input_audio_format": INPUT_AUDIO_FORMAT,
-        "input_audio_transcription": {
-            "model": STREAMING_MODEL,
-            "prompt": STREAMING_PROMPT,
-            "language": LANGUAGE_CODE
-        },
-        "turn_detection": {
-            "type": "server_vad",
-            "threshold": STREAMING_THRESHOLD,
-            "prefix_padding_ms": STREAMING_PREFIX_PADDING_MS,
-            "silence_duration_ms": STREAMING_SILENCE_DURATION_MS
-        },
-        "input_audio_noise_reduction": {
-            "type": "near_field"
-        },
-        "include": ["item.input_audio_transcription.logprobs"]
-    }
+        "session": {
+            "input_audio_format": INPUT_AUDIO_FORMAT,
+            "input_audio_transcription": {
+                "model": STREAMING_MODEL,
+                "prompt": STREAMING_PROMPT,
+                "language": LANGUAGE_CODE
+            },
+            "turn_detection": {
+                "type": "server_vad",
+                "threshold": STREAMING_THRESHOLD,
+                "prefix_padding_ms": STREAMING_PREFIX_PADDING_MS,
+                "silence_duration_ms": STREAMING_SILENCE_DURATION_MS
+            },
+            "input_audio_noise_reduction": {
+                "type": "near_field"
+            },
+            "include": ["item.input_audio_transcription.logprobs"]
+        }}
     await ws.send(json.dumps(initial_payload))
     logger.info("Sent initial configuration payload for transcription session.")
     return ws
@@ -79,7 +79,6 @@ async def send_audio_chunks(ws, audio_source):
     import json
     max_chunk_size = 4096
     overlap_size = 512
-    global SESSION_ID
     while True:
         try:
             chunk = await audio_source.get()
@@ -145,73 +144,35 @@ async def handle_incoming_transcriptions(ws):
         ws: The active WebSocket connection.
     """
     import json
-    global SESSION_ID
     transcript = ""
     try:
         async for message in ws:
             try:
                 data = json.loads(message)
-                if data.get("type") == "transcription_session.created":
-                    session = data.get("session")
-                    if session:
-                        SESSION_ID = session.get("id")
-                        logger.info("Session created with ID: %s", SESSION_ID)
-                        from transcribe_service.config import (
-                            INPUT_AUDIO_FORMAT,
-                            STREAMING_MODEL,
-                            STREAMING_PROMPT,
-                            STREAMING_THRESHOLD,
-                            STREAMING_PREFIX_PADDING_MS,
-                            STREAMING_SILENCE_DURATION_MS,
-                            LANGUAGE_CODE,
-                        )
-                        update_payload = {
-                            "type": "session.update",
-                            "session": {
-                                "id": SESSION_ID,
-                                "modalities": ["text", "audio"],
-                                "instructions": "You are a helpful assistant.",
-                                "voice": "sage",
-                                "input_audio_format": INPUT_AUDIO_FORMAT,
-                                "output_audio_format": INPUT_AUDIO_FORMAT,
-                                "input_audio_transcription": {
-                                    "model": STREAMING_MODEL,
-                                    "prompt": STREAMING_PROMPT,
-                                    "language": LANGUAGE_CODE,
-                                },
-                                "turn_detection": {
-                                    "type": "server_vad",
-                                    "threshold": STREAMING_THRESHOLD,
-                                    "prefix_padding_ms": STREAMING_PREFIX_PADDING_MS,
-                                    "silence_duration_ms": STREAMING_SILENCE_DURATION_MS,
-                                    "create_response": True,
-                                },
-                                "input_audio_noise_reduction": {
-                                    "type": "near_field"
-                                },
-                                "include": ["item.input_audio_transcription.logprobs"],
-                                "tools": [],
-                                "tool_choice": "auto",
-                                "temperature": 0.8,
-                                "max_response_output_tokens": "inf",
-                            }
-                        }
-                        await ws.send(json.dumps(update_payload))
-                        logger.info("Sent session update with session details using session.update event.")
+                event_type = data.get("type")
+                if event_type == "transcription_session.created":
+                    logger.info("Session created: %s", data)
                     continue
-                partial = data.get("partial")
-                final = data.get("final")
-                if final:
-                    transcript += final
-                    logger.info("Final transcript: %s", transcript)
-                elif partial:
-                    logger.info("Partial transcript: %s", partial)
+                elif event_type == "transcription_session.updated":
+                    logger.info("Session updated: %s", data)
+                    continue
+                elif event_type == "conversation.item.input_audio_transcription.delta":
+                    delta = data.get("delta", "")
+                    transcript += delta
+                    print("Delta transcription:", delta)
+                    continue
+                elif event_type == "conversation.item.input_audio_transcription.completed":
+                    final_transcript = data.get("transcript", "")
+                    transcript += final_transcript
+                    print("Final transcription:", transcript)
+                    transcript = ""
+                    continue
                 else:
                     logger.info("Unknown message: %s", data)
             except Exception as e:
-                logger.error("Error processing message: %s", e)
+                print("Error processing message:", e)
     except Exception as e:
-        logger.error("Error receiving message: %s", e)
+        print("Error receiving messages:", e)
 
 
 async def manage_streaming():
