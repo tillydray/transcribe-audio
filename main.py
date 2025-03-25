@@ -42,7 +42,10 @@ def process_audio_segment(topic):
     Arguments:
         topic (str): The transcription topic to include in the prompt.
     """
-    # Calculate the number of frames we need for SEGMENT_SECONDS of audio.
+    current_topic = initial_topic
+    full_transcript = ""
+    last_topic_update = time.time()
+    refinements = 0
     frames_per_segment = SAMPLERATE * SEGMENT_SECONDS
     prev_transcript = ""
     while True:
@@ -111,6 +114,14 @@ def process_audio_segment(topic):
                 current_transcript = response.text
                 print("Transcription:", current_transcript)
                 prev_transcript = current_transcript
+                full_transcript += "\n" + current_transcript
+                now = time.time()
+                if now - last_topic_update >= 60 and refinements < 10:
+                    new_topic = generate_topic_from_context(full_transcript, initial_topic, current_topic)
+                    print("Refined topic:", new_topic)
+                    current_topic = new_topic
+                    last_topic_update = now
+                    refinements += 1
             except Exception as e:
                 print("Error calling transcription API:", e)
         else:
