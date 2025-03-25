@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+"""
+Module for capturing audio from an input stream, converting it to WAV format, and transcribing it via the OpenAI API.
+"""
 
 import sounddevice as sd
 import io
@@ -22,10 +25,7 @@ SEGMENT_SECONDS = 5  # Collect 5 seconds of audio for each transcription
 
 
 def enque_audio(indata, frames, time_info, status):
-    """Callback for the audio input stream.
-    
-    Enqueues a copy of the incoming audio data into the global audio_queue.
-    """
+    """Enqueue a copy of the incoming audio data into the global audio_queue."""
     if status:
         print("Streaming status:", status)
     # Simply enqueue the raw audio data (as a copy to avoid conflicts)
@@ -76,10 +76,7 @@ def process_audio_segment():
 
 
 def main():
-    """Main entry point for audio transcription.
-    
-    Starts the audio processing worker thread and initiates the audio stream.
-    """
+    """Start the audio processing worker thread and initiates the audio stream."""
     worker = threading.Thread(target=process_audio_segment, daemon=True)
     worker.start()
 
